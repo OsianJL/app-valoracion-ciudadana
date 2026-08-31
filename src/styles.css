@@ -20,6 +20,11 @@ body {
   background: #fff;
 }
 
+#root {
+  width: 100%;
+  min-width: 0;
+}
+
 button,
 textarea {
   touch-action: manipulation;
@@ -283,13 +288,18 @@ button[type="submit"]:disabled {
 
   body {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     padding: 24px;
     place-items: center;
     background: linear-gradient(160deg, #e3f0f4, #f7f9fa 55%);
   }
 
+  #root {
+    max-width: 700px;
+  }
+
   .card {
-    width: min(100%, 700px);
+    min-width: 0;
     min-height: 0;
     padding: 28px;
     border-top-width: 6px;
