@@ -30,15 +30,17 @@ async function createRating(request: Request, env: Env): Promise<Response> {
   } catch { return json({ error: "JSON no válido." }, 400); }
 
   if (typeof data !== "object" || data === null || Array.isArray(data)) return json({ error: "Datos no válidos." }, 400);
-  const { office_id, satisfaction_level, comment } = data as Record<string, unknown>;
+  const { office_id, satisfaction_level, comment, digital_agents_fixed, other_public_offices_fixed } = data as Record<string, unknown>;
   if (typeof office_id !== "string" || office_id.length > 64 || !OFFICE_PATTERN.test(office_id)) return json({ error: "Oficina no válida." }, 400);
   if (!Number.isInteger(satisfaction_level) || (satisfaction_level as number) < 1 || (satisfaction_level as number) > 5) return json({ error: "Valoración no válida." }, 400);
   if (typeof comment !== "string" || comment.length > 500) return json({ error: "Comentario no válido." }, 400);
+  if (typeof digital_agents_fixed !== "boolean") return json({ error: "Pregunta sobre agentes no válida." }, 400);
+  if (typeof other_public_offices_fixed !== "boolean") return json({ error: "Pregunta sobre otras oficinas no válida." }, 400);
   if (!env.IP_HASH_SECRET) return json({ error: "Error interno." }, 500);
 
   const ipHash = await hashIp(request.headers.get("CF-Connecting-IP") ?? "unknown", env.IP_HASH_SECRET);
-  const result = await env.DB.prepare("INSERT INTO ratings (office_id, satisfaction_level, comment, ip_hash) VALUES (?, ?, ?, ?)")
-    .bind(office_id, satisfaction_level, comment.trim() || null, ipHash).run();
+  const result = await env.DB.prepare("INSERT INTO ratings (office_id, satisfaction_level, comment, ip_hash, digital_agents_fixed, other_public_offices_fixed) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(office_id, satisfaction_level, comment.trim() || null, ipHash, digital_agents_fixed ? 1 : 0, other_public_offices_fixed ? 1 : 0).run();
   return json({ ok: true, id: result.meta.last_row_id }, 201);
 }
 
