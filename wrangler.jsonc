@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "valoracion-ciudadana",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "3c168cbd-db71-4361-98b3-b9adab622bbe",
       "migrations_dir": "migrations"
     }
   ]
