@@ -6,6 +6,26 @@ interface Env {
 
 const OFFICE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_BODY_BYTES = 2048;
+const RESULT_COLUMNS = "id, created_at, office_id, satisfaction_level, digital_agents_fixed, other_public_offices_fixed, comment";
+const RESULT_OFFICES = new Set([
+  "sce-arenales", "sce-arucas", "sce-ciudad-alta", "sce-galdar", "sce-ingenio", "sce-maspalomas",
+  "sce-primero-de-mayo", "sce-puerto", "sce-telde", "sce-vecindario", "sce-puerto-del-rosario",
+  "sce-gran-tarajal", "sce-arrecife", "sce-tegueste", "sce-tome-cano", "sce-tacoronte",
+  "sce-puerto-de-la-cruz", "sce-los-cristianos", "sce-la-orotava", "sce-la-laguna",
+  "sce-islas-canarias", "sce-icod-de-los-vinos", "sce-guimar", "sce-guia-de-isora",
+  "sce-granadilla-de-abona", "sce-barranco-grande", "sce-santa-cruz-de-la-palma", "sce-los-llanos",
+  "sce-san-sebastian-de-la-gomera", "sce-valverde",
+]);
+
+interface RatingResult {
+  id: number;
+  created_at: string;
+  office_id: string;
+  satisfaction_level: number;
+  digital_agents_fixed: number;
+  other_public_offices_fixed: number;
+  comment: string | null;
+}
 
 function json(body: object, status: number): Response {
   return Response.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -44,10 +64,66 @@ async function createRating(request: Request, env: Env): Promise<Response> {
   return json({ ok: true, id: result.meta.last_row_id }, 201);
 }
 
+function validDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+
+function nextDate(value: string): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function csvCell(value: string | number | null): string {
+  const text = value === null ? "" : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+async function getResults(request: Request, env: Env, csv: boolean): Promise<Response> {
+  const url = new URL(request.url);
+  const office = url.searchParams.get("office")?.trim() ?? "";
+  const from = url.searchParams.get("from")?.trim() ?? "";
+  const to = url.searchParams.get("to")?.trim() ?? "";
+
+  if (office && !RESULT_OFFICES.has(office)) return json({ error: "Oficina no válida." }, 400);
+  if ((from && !validDate(from)) || (to && !validDate(to)) || (from && to && from > to)) {
+    return json({ error: "Rango de fechas no válido." }, 400);
+  }
+
+  const conditions: string[] = [];
+  const bindings: string[] = [];
+  if (office) { conditions.push("office_id = ?"); bindings.push(office); }
+  if (from) { conditions.push("created_at >= ?"); bindings.push(`${from}T00:00:00.000Z`); }
+  if (to) { conditions.push("created_at < ?"); bindings.push(`${nextDate(to)}T00:00:00.000Z`); }
+  const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const statement = env.DB.prepare(`SELECT ${RESULT_COLUMNS} FROM ratings${where} ORDER BY created_at DESC, id DESC`);
+  const result = await (bindings.length ? statement.bind(...bindings) : statement).all<RatingResult>();
+  const rows = result.results;
+
+  if (!csv) return json({ results: rows }, 200);
+
+  const header = RESULT_COLUMNS.split(", ");
+  const lines = [header.join(","), ...rows.map((row) => header.map((column) => csvCell(row[column as keyof RatingResult])).join(","))];
+  return new Response(`\uFEFF${lines.join("\r\n")}\r\n`, {
+    status: 200,
+    headers: {
+      "cache-control": "no-store",
+      "content-disposition": 'attachment; filename="valoraciones-atd.csv"',
+      "content-type": "text/csv; charset=utf-8",
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
+      if ((url.pathname === "/api/results" || url.pathname === "/api/results.csv") && request.method === "GET") {
+        try { return await getResults(request, env, url.pathname.endsWith(".csv")); }
+        catch (error) { console.error("Unable to read ratings", error); return json({ error: "Error interno." }, 500); }
+      }
       if (url.pathname === "/api/ratings" && request.method === "POST") {
         try { return await createRating(request, env); }
         catch (error) { console.error("Unable to save rating", error); return json({ error: "Error interno." }, 500); }
