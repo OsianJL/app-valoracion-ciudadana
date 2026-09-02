@@ -24,8 +24,9 @@ export default function App() {
     if (!validOffice || rating === null || digitalAgentsFixed === null || otherOfficesFixed === null || status === "sending") return;
     setStatus("sending");
     setError("");
+    let response: Response;
     try {
-      const response = await fetch("/api/ratings", {
+      response = await fetch("/api/ratings", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -36,17 +37,22 @@ export default function App() {
           other_public_offices_fixed: otherOfficesFixed,
         }),
       });
-      if (response.status === 409) {
-        setStatus("idle");
-        setError("Ya se ha registrado una valoración desde esta conexión.");
-        return;
-      }
-      if (!response.ok) throw new Error();
-      setStatus("sent");
     } catch {
       setStatus("idle");
       setError("No hemos podido enviar tu valoración. Inténtalo de nuevo.");
+      return;
     }
+    if (response.status === 409) {
+      setStatus("idle");
+      setError("Ya se ha registrado una valoración desde esta conexión.");
+      return;
+    }
+    if (!response.ok) {
+      setStatus("idle");
+      setError("No hemos podido enviar tu valoración. Inténtalo de nuevo.");
+      return;
+    }
+    setStatus("sent");
   }
 
   if (status === "sent") {
