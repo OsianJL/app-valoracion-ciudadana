@@ -36,6 +36,11 @@ export default function App() {
           other_public_offices_fixed: otherOfficesFixed,
         }),
       });
+      if (response.status === 409) {
+        setStatus("idle");
+        setError("Ya se ha registrado una valoración desde esta conexión.");
+        return;
+      }
       if (!response.ok) throw new Error();
       setStatus("sent");
     } catch {
