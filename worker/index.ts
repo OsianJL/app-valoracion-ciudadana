@@ -6,6 +6,7 @@ interface Env {
 
 const OFFICE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_BODY_BYTES = 2048;
+const DUPLICATE_RATING_ERROR = "Ya se ha registrado una valoración desde esta conexión.";
 const RESULT_COLUMNS = "id, created_at, office_id, satisfaction_level, digital_agents_fixed, other_public_offices_fixed, comment";
 const RESULT_OFFICES = new Set([
   "sce-arenales", "sce-arucas", "sce-ciudad-alta", "sce-galdar", "sce-ingenio", "sce-maspalomas",
@@ -59,8 +60,19 @@ async function createRating(request: Request, env: Env): Promise<Response> {
   if (!env.IP_HASH_SECRET) return json({ error: "Error interno." }, 500);
 
   const ipHash = await hashIp(request.headers.get("CF-Connecting-IP") ?? "unknown", env.IP_HASH_SECRET);
-  const result = await env.DB.prepare("INSERT INTO ratings (office_id, satisfaction_level, comment, ip_hash, digital_agents_fixed, other_public_offices_fixed) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(office_id, satisfaction_level, comment.trim() || null, ipHash, digital_agents_fixed ? 1 : 0, other_public_offices_fixed ? 1 : 0).run();
+  const existingRating = await env.DB.prepare("SELECT 1 FROM ratings WHERE ip_hash = ? LIMIT 1").bind(ipHash).first();
+  if (existingRating) return json({ error: DUPLICATE_RATING_ERROR }, 409);
+
+  let result: D1Result;
+  try {
+    result = await env.DB.prepare("INSERT INTO ratings (office_id, satisfaction_level, comment, ip_hash, digital_agents_fixed, other_public_offices_fixed) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(office_id, satisfaction_level, comment.trim() || null, ipHash, digital_agents_fixed ? 1 : 0, other_public_offices_fixed ? 1 : 0).run();
+  } catch (error) {
+    // The unique index is the final safeguard when simultaneous requests pass the check above.
+    const conflictingRating = await env.DB.prepare("SELECT 1 FROM ratings WHERE ip_hash = ? LIMIT 1").bind(ipHash).first();
+    if (conflictingRating) return json({ error: DUPLICATE_RATING_ERROR }, 409);
+    throw error;
+  }
   return json({ ok: true, id: result.meta.last_row_id }, 201);
 }
 
