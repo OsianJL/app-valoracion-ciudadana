@@ -1,22 +1,14 @@
+import { isValidOffice } from "../src/offices";
+
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   IP_HASH_SECRET: string;
 }
 
-const OFFICE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_BODY_BYTES = 2048;
 const DUPLICATE_RATING_ERROR = "Ya se ha registrado una valoración desde esta conexión.";
 const RESULT_COLUMNS = "id, created_at, office_id, satisfaction_level, digital_agents_fixed, other_public_offices_fixed, comment";
-const RESULT_OFFICES = new Set([
-  "sce-arenales", "sce-arucas", "sce-ciudad-alta", "sce-galdar", "sce-ingenio", "sce-maspalomas",
-  "sce-primero-de-mayo", "sce-puerto", "sce-telde", "sce-vecindario", "sce-puerto-del-rosario",
-  "sce-gran-tarajal", "sce-arrecife", "sce-tegueste", "sce-tome-cano", "sce-tacoronte",
-  "sce-puerto-de-la-cruz", "sce-los-cristianos", "sce-la-orotava", "sce-la-laguna",
-  "sce-islas-canarias", "sce-icod-de-los-vinos", "sce-guimar", "sce-guia-de-isora",
-  "sce-granadilla-de-abona", "sce-barranco-grande", "sce-santa-cruz-de-la-palma", "sce-los-llanos",
-  "sce-san-sebastian-de-la-gomera", "sce-valverde",
-]);
 
 interface RatingResult {
   id: number;
@@ -52,7 +44,7 @@ async function createRating(request: Request, env: Env): Promise<Response> {
 
   if (typeof data !== "object" || data === null || Array.isArray(data)) return json({ error: "Datos no válidos." }, 400);
   const { office_id, satisfaction_level, comment, digital_agents_fixed, other_public_offices_fixed } = data as Record<string, unknown>;
-  if (typeof office_id !== "string" || office_id.length > 64 || !OFFICE_PATTERN.test(office_id)) return json({ error: "Oficina no válida." }, 400);
+  if (!isValidOffice(office_id)) return json({ error: "Oficina no válida." }, 400);
   if (!Number.isInteger(satisfaction_level) || (satisfaction_level as number) < 1 || (satisfaction_level as number) > 5) return json({ error: "Valoración no válida." }, 400);
   if (typeof comment !== "string" || comment.length > 500) return json({ error: "Comentario no válido." }, 400);
   if (typeof digital_agents_fixed !== "boolean") return json({ error: "Pregunta sobre agentes no válida." }, 400);
@@ -99,7 +91,7 @@ async function getResults(request: Request, env: Env, csv: boolean): Promise<Res
   const from = url.searchParams.get("from")?.trim() ?? "";
   const to = url.searchParams.get("to")?.trim() ?? "";
 
-  if (office && !RESULT_OFFICES.has(office)) return json({ error: "Oficina no válida." }, 400);
+  if (office && !isValidOffice(office)) return json({ error: "Oficina no válida." }, 400);
   if ((from && !validDate(from)) || (to && !validDate(to)) || (from && to && from > to)) {
     return json({ error: "Rango de fechas no válido." }, 400);
   }
