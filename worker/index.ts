@@ -1,4 +1,5 @@
 import { isValidOffice } from "../src/offices";
+import { csvCell } from "./csv";
 
 interface Env {
   DB: D1Database;
@@ -78,11 +79,6 @@ function nextDate(value: string): string {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
-}
-
-function csvCell(value: string | number | null): string {
-  const text = value === null ? "" : String(value);
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 async function getResults(request: Request, env: Env, csv: boolean): Promise<Response> {
