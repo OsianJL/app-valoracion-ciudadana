@@ -15,3 +15,8 @@ export const offices = [
 ] as const;
 
 export const officeNames = new Map<string, string>(offices);
+const officeIds = new Set<string>(officeNames.keys());
+
+export function isValidOffice(value: unknown): value is typeof offices[number][0] {
+  return typeof value === "string" && officeIds.has(value);
+}

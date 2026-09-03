@@ -1,14 +1,11 @@
 import { FormEvent, useState } from "react";
+import { isValidOffice } from "./offices";
 
-const OFFICE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const labels = ["Muy mala", "Mala", "Aceptable", "Buena", "Excelente"];
 
 export default function App() {
-  const requestedOffice = new URLSearchParams(window.location.search).get("office")?.trim() ?? "";
-  const office = requestedOffice && OFFICE_PATTERN.test(requestedOffice) && requestedOffice.length <= 64
-    ? requestedOffice
-    : "oficina-prueba";
-  const validOffice = true;
+  const office = new URLSearchParams(window.location.search).get("office") ?? "";
+  const validOffice = isValidOffice(office);
   const [rating, setRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [comment, setComment] = useState("");
@@ -63,7 +60,7 @@ export default function App() {
     <main className="card">
       <header><span className="eyebrow">SERVICIOS PÚBLICOS</span><h1>Tu opinión nos ayuda a mejorar</h1><p>La encuesta es anónima y solo te llevará unos segundos.</p></header>
       {!validOffice ? (
-        <div className="notice error" role="alert"><strong>No se ha identificado la oficina.</strong><br />Accede de nuevo usando el código QR de la oficina.</div>
+        <div className="notice error" role="alert"><strong>Enlace de valoración no válido.</strong><br />Accede mediante el código QR correspondiente a tu oficina.</div>
       ) : (
         <form onSubmit={submit}>
           <fieldset className="ratings-fieldset">
