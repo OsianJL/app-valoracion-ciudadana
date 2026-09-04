@@ -1,0 +1,36 @@
+const officeIdsByToken: Readonly<Record<string, string>> = Object.freeze({
+  "locpSxskBzbYEU47-Vq_UQ": "sce-arenales",
+  "ANM4DORobuODx-mS-9u3eg": "sce-arucas",
+  "29iCyMWJxeOe-PKGUS17Yw": "sce-ciudad-alta",
+  "Qf4LW6Ctu2Kek8NINO0rog": "sce-galdar",
+  "CclDNyidrB4bGVwqvhgkHQ": "sce-ingenio",
+  "aEcgQWs8SeNIPp5Dc_6PHA": "sce-maspalomas",
+  "jgdQX2fesoauv9ZBI1fV-A": "sce-primero-de-mayo",
+  "xS_9clE8Sxy_NjCdnDyQMQ": "sce-puerto",
+  "F2yCVl8O6yEyqnkt2xVArw": "sce-telde",
+  "iyPLPEzazHXeedVJ0R-4XA": "sce-vecindario",
+  "5xtCl1-7VN23DLLBvifEWQ": "sce-puerto-del-rosario",
+  "f53yHG6OTHhkX4YD7MiG6A": "sce-gran-tarajal",
+  "LY-45G8Js2f5xcAXCP1kHg": "sce-arrecife",
+  "7dIR1BHnqAq4K1-HYJQyjw": "sce-tegueste",
+  "TB8jwgQhTGpbYtUCkfxcnQ": "sce-tome-cano",
+  "T905WD_4Np2Jvyn_C6s_iQ": "sce-tacoronte",
+  "QtfJ7JCuYWslLRUK4g6omw": "sce-puerto-de-la-cruz",
+  "7A4LdjND7n4BqRnlqkWu-w": "sce-los-cristianos",
+  "2erj3kb1B92H4c6nymZVxQ": "sce-la-orotava",
+  "52lH1OWniMnvsEbyEw2z0Q": "sce-la-laguna",
+  "Ezy35PftmM9S5W9DlTG2cQ": "sce-islas-canarias",
+  "fbxzDDDNVaFv9JqCcOdv9w": "sce-icod-de-los-vinos",
+  "6Orl_iimWumy0oIs2e0rXw": "sce-guimar",
+  "sVeqUZOmO4zQY2nd8_Li0Q": "sce-guia-de-isora",
+  "I0xgYKz5co9d0t3fWuLeGg": "sce-granadilla-de-abona",
+  "X8RfmOdIwASMzgggmLXSog": "sce-barranco-grande",
+  "tGk9Mo6mIq6X7ouLN8OiHg": "sce-santa-cruz-de-la-palma",
+  "97IA1CnBmphUJYXx60TnBQ": "sce-los-llanos",
+  "SLQKhqWBSayLAym9WqzAKg": "sce-san-sebastian-de-la-gomera",
+  "ERqFUEBfhZnUdFQPXFZ14w": "sce-valverde",
+});
+
+export function officeIdForToken(token: unknown): string | undefined {
+  return typeof token === "string" ? officeIdsByToken[token] : undefined;
+}

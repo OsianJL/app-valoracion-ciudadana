@@ -1,11 +1,10 @@
-import { FormEvent, useState } from "react";
-import { isValidOffice } from "./offices";
+import { FormEvent, useEffect, useState } from "react";
 
 const labels = ["Muy mala", "Mala", "Aceptable", "Buena", "Excelente"];
 
 export default function App() {
-  const office = new URLSearchParams(window.location.search).get("office") ?? "";
-  const validOffice = isValidOffice(office);
+  const officeToken = new URLSearchParams(window.location.search).get("o") ?? "";
+  const [officeState, setOfficeState] = useState<"loading" | "valid" | "invalid">(officeToken ? "loading" : "invalid");
   const [rating, setRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [comment, setComment] = useState("");
@@ -16,9 +15,20 @@ export default function App() {
 
   const currentRating = hoveredRating ?? rating ?? 0;
 
+  useEffect(() => {
+    if (!officeToken) return;
+    const controller = new AbortController();
+    fetch(`/api/office?o=${encodeURIComponent(officeToken)}`, { signal: controller.signal })
+      .then((response) => setOfficeState(response.ok ? "valid" : "invalid"))
+      .catch((reason: unknown) => {
+        if (!(reason instanceof DOMException && reason.name === "AbortError")) setOfficeState("invalid");
+      });
+    return () => controller.abort();
+  }, [officeToken]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!validOffice || rating === null || digitalAgentsFixed === null || otherOfficesFixed === null || status === "sending") return;
+    if (officeState !== "valid" || rating === null || digitalAgentsFixed === null || otherOfficesFixed === null || status === "sending") return;
     setStatus("sending");
     setError("");
     let response: Response;
@@ -27,7 +37,7 @@ export default function App() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          office_id: office,
+          office_token: officeToken,
           satisfaction_level: rating,
           comment,
           digital_agents_fixed: digitalAgentsFixed,
@@ -59,7 +69,9 @@ export default function App() {
   return (
     <main className="card">
       <header><span className="eyebrow">SERVICIOS PÚBLICOS</span><h1>Tu opinión nos ayuda a mejorar</h1><p>La encuesta es anónima y solo te llevará unos segundos.</p></header>
-      {!validOffice ? (
+      {officeState === "loading" ? (
+        <div className="notice" role="status">Validando enlace…</div>
+      ) : officeState === "invalid" ? (
         <div className="notice error" role="alert"><strong>Enlace de valoración no válido.</strong><br />Accede mediante el código QR correspondiente a tu oficina.</div>
       ) : (
         <form onSubmit={submit}>
