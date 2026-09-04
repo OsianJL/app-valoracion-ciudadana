@@ -1,5 +1,6 @@
 import { isValidOffice } from "../src/offices";
 import { csvCell } from "./csv";
+import { officeIdForToken } from "./officeTokens";
 
 interface Env {
   DB: D1Database;
@@ -44,8 +45,9 @@ async function createRating(request: Request, env: Env): Promise<Response> {
   } catch { return json({ error: "JSON no válido." }, 400); }
 
   if (typeof data !== "object" || data === null || Array.isArray(data)) return json({ error: "Datos no válidos." }, 400);
-  const { office_id, satisfaction_level, comment, digital_agents_fixed, other_public_offices_fixed } = data as Record<string, unknown>;
-  if (!isValidOffice(office_id)) return json({ error: "Oficina no válida." }, 400);
+  const { office_token, satisfaction_level, comment, digital_agents_fixed, other_public_offices_fixed } = data as Record<string, unknown>;
+  const officeId = officeIdForToken(office_token);
+  if (!officeId) return json({ error: "Oficina no válida." }, 400);
   if (!Number.isInteger(satisfaction_level) || (satisfaction_level as number) < 1 || (satisfaction_level as number) > 5) return json({ error: "Valoración no válida." }, 400);
   if (typeof comment !== "string" || comment.length > 500) return json({ error: "Comentario no válido." }, 400);
   if (typeof digital_agents_fixed !== "boolean") return json({ error: "Pregunta sobre agentes no válida." }, 400);
@@ -59,7 +61,7 @@ async function createRating(request: Request, env: Env): Promise<Response> {
   let result: D1Result;
   try {
     result = await env.DB.prepare("INSERT INTO ratings (office_id, satisfaction_level, comment, ip_hash, digital_agents_fixed, other_public_offices_fixed) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(office_id, satisfaction_level, comment.trim() || null, ipHash, digital_agents_fixed ? 1 : 0, other_public_offices_fixed ? 1 : 0).run();
+      .bind(officeId, satisfaction_level, comment.trim() || null, ipHash, digital_agents_fixed ? 1 : 0, other_public_offices_fixed ? 1 : 0).run();
   } catch (error) {
     // The unique index is the final safeguard when simultaneous requests pass the check above.
     const conflictingRating = await env.DB.prepare("SELECT 1 FROM ratings WHERE ip_hash = ? LIMIT 1").bind(ipHash).first();
@@ -120,6 +122,10 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
+      if (url.pathname === "/api/office" && request.method === "GET") {
+        const officeId = officeIdForToken(url.searchParams.get("o"));
+        return officeId ? json({ valid: true }, 200) : json({ error: "Oficina no válida." }, 404);
+      }
       if ((url.pathname === "/api/results" || url.pathname === "/api/results.csv") && request.method === "GET") {
         try { return await getResults(request, env, url.pathname.endsWith(".csv")); }
         catch (error) { console.error("Unable to read ratings", error); return json({ error: "Error interno." }, 500); }
