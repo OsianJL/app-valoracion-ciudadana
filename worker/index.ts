@@ -1,6 +1,6 @@
-import { isValidOffice } from "../src/offices";
-import { csvCell } from "./csv";
-import { officeIdForToken } from "./officeTokens";
+import { isValidOffice } from "../src/offices.ts";
+import { csvCell } from "./csv.ts";
+import { officeIdForToken } from "./officeTokens.ts";
 
 interface Env {
   DB: D1Database;
@@ -10,6 +10,10 @@ interface Env {
 
 const MAX_BODY_BYTES = 2048;
 const DUPLICATE_RATING_ERROR = "Ya se ha registrado una valoración desde esta conexión.";
+const PROGRAM_ENDED_ERROR = "El plazo para enviar valoraciones ha finalizado.";
+/** End of the collection period. Hashes are no longer needed from this instant. */
+export const PROGRAM_ENDS_AT = "2027-04-01T00:00:00+01:00";
+const PROGRAM_ENDS_AT_MS = Date.parse(PROGRAM_ENDS_AT);
 const RESULT_COLUMNS = "id, created_at, office_id, satisfaction_level, digital_agents_fixed, other_public_offices_fixed, comment";
 
 interface RatingResult {
@@ -32,7 +36,15 @@ async function hashIp(ip: string, secret: string): Promise<string> {
   return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function createRating(request: Request, env: Env): Promise<Response> {
+async function deleteExpiredIpHashes(env: Env, now: number): Promise<void> {
+  if (now >= PROGRAM_ENDS_AT_MS) await env.DB.prepare("DELETE FROM rating_ip_hashes").run();
+}
+
+async function createRating(request: Request, env: Env, now: number): Promise<Response> {
+  if (now >= PROGRAM_ENDS_AT_MS) {
+    await deleteExpiredIpHashes(env, now);
+    return json({ error: PROGRAM_ENDED_ERROR }, 410);
+  }
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > MAX_BODY_BYTES) return json({ error: "La petición es demasiado grande." }, 413);
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return json({ error: "El contenido debe ser JSON." }, 400);
@@ -55,20 +67,15 @@ async function createRating(request: Request, env: Env): Promise<Response> {
   if (!env.IP_HASH_SECRET) return json({ error: "Error interno." }, 500);
 
   const ipHash = await hashIp(request.headers.get("CF-Connecting-IP") ?? "unknown", env.IP_HASH_SECRET);
-  const existingRating = await env.DB.prepare("SELECT 1 FROM ratings WHERE ip_hash = ? LIMIT 1").bind(ipHash).first();
-  if (existingRating) return json({ error: DUPLICATE_RATING_ERROR }, 409);
-
-  let result: D1Result;
-  try {
-    result = await env.DB.prepare("INSERT INTO ratings (office_id, satisfaction_level, comment, ip_hash, digital_agents_fixed, other_public_offices_fixed) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(officeId, satisfaction_level, comment.trim() || null, ipHash, digital_agents_fixed ? 1 : 0, other_public_offices_fixed ? 1 : 0).run();
-  } catch (error) {
-    // The unique index is the final safeguard when simultaneous requests pass the check above.
-    const conflictingRating = await env.DB.prepare("SELECT 1 FROM ratings WHERE ip_hash = ? LIMIT 1").bind(ipHash).first();
-    if (conflictingRating) return json({ error: DUPLICATE_RATING_ERROR }, 409);
-    throw error;
-  }
-  return json({ ok: true, id: result.meta.last_row_id }, 201);
+  // D1 batches are transactional. changes() makes the response insert conditional on
+  // this batch having claimed the globally unique hash, including under concurrency.
+  const [, ratingResult] = await env.DB.batch([
+    env.DB.prepare("INSERT INTO rating_ip_hashes (ip_hash) VALUES (?) ON CONFLICT (ip_hash) DO NOTHING").bind(ipHash),
+    env.DB.prepare("INSERT INTO ratings (office_id, satisfaction_level, comment, digital_agents_fixed, other_public_offices_fixed) SELECT ?, ?, ?, ?, ? WHERE changes() = 1")
+      .bind(officeId, satisfaction_level, comment.trim() || null, digital_agents_fixed ? 1 : 0, other_public_offices_fixed ? 1 : 0),
+  ]);
+  if (ratingResult.meta.changes === 0) return json({ error: DUPLICATE_RATING_ERROR }, 409);
+  return json({ ok: true, id: ratingResult.meta.last_row_id }, 201);
 }
 
 function validDate(value: string): boolean {
@@ -118,24 +125,31 @@ async function getResults(request: Request, env: Env, csv: boolean): Promise<Res
   });
 }
 
+export async function handleRequest(request: Request, env: Env, now = Date.now()): Promise<Response> {
+  const url = new URL(request.url);
+  if (url.pathname.startsWith("/api/")) {
+    if (url.pathname === "/api/office" && request.method === "GET") {
+      const officeId = officeIdForToken(url.searchParams.get("o"));
+      return officeId ? json({ valid: true }, 200) : json({ error: "Oficina no válida." }, 404);
+    }
+    if ((url.pathname === "/api/results" || url.pathname === "/api/results.csv") && request.method === "GET") {
+      try { return await getResults(request, env, url.pathname.endsWith(".csv")); }
+      catch (error) { console.error("Unable to read ratings", error); return json({ error: "Error interno." }, 500); }
+    }
+    if (url.pathname === "/api/ratings" && request.method === "POST") {
+      try { return await createRating(request, env, now); }
+      catch (error) { console.error("Unable to save rating", error); return json({ error: "Error interno." }, 500); }
+    }
+    return json({ error: "No encontrado." }, 404);
+  }
+  return env.ASSETS.fetch(request);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    if (url.pathname.startsWith("/api/")) {
-      if (url.pathname === "/api/office" && request.method === "GET") {
-        const officeId = officeIdForToken(url.searchParams.get("o"));
-        return officeId ? json({ valid: true }, 200) : json({ error: "Oficina no válida." }, 404);
-      }
-      if ((url.pathname === "/api/results" || url.pathname === "/api/results.csv") && request.method === "GET") {
-        try { return await getResults(request, env, url.pathname.endsWith(".csv")); }
-        catch (error) { console.error("Unable to read ratings", error); return json({ error: "Error interno." }, 500); }
-      }
-      if (url.pathname === "/api/ratings" && request.method === "POST") {
-        try { return await createRating(request, env); }
-        catch (error) { console.error("Unable to save rating", error); return json({ error: "Error interno." }, 500); }
-      }
-      return json({ error: "No encontrado." }, 404);
-    }
-    return env.ASSETS.fetch(request);
+    return handleRequest(request, env);
+  },
+  async scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    await deleteExpiredIpHashes(env, controller.scheduledTime);
   },
 } satisfies ExportedHandler<Env>;

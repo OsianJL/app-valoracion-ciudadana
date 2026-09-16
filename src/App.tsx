@@ -68,7 +68,7 @@ export default function App() {
 
   return (
     <main className="card">
-      <header><span className="eyebrow">SERVICIOS PÚBLICOS</span><h1>Tu opinión nos ayuda a mejorar</h1><p>La encuesta es anónima y solo te llevará unos segundos.</p></header>
+      <header><span className="eyebrow">SERVICIOS PÚBLICOS</span><h1>Tu opinión nos ayuda a mejorar</h1><p>Responder solo te llevará unos segundos.</p></header>
       {officeState === "loading" ? (
         <div className="notice" role="status">Validando enlace…</div>
       ) : officeState === "invalid" ? (
@@ -134,7 +134,7 @@ export default function App() {
           <label className="comment">Comentario <span>(opcional)</span><textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} rows={4} placeholder="Cuéntanos qué podemos mejorar" /><small>{comment.length}/500</small></label>
           {error && <div className="notice error" role="alert">{error}</div>}
           <button type="submit" disabled={rating === null || digitalAgentsFixed === null || otherOfficesFixed === null || status === "sending"}>{status === "sending" ? "Enviando…" : "Enviar valoración"}</button>
-          <p className="privacy">No solicitamos datos personales. La dirección IP se transforma en un código irreversible.</p>
+          <p className="privacy">No solicitamos tu nombre ni datos de contacto. Para impedir valoraciones repetidas, la dirección IP se transforma mediante HMAC-SHA-256 en un código seudonimizado. No almacenamos la dirección IP original. Este código se conservará hasta el 31 de marzo de 2027 y después será eliminado.</p>
         </form>
       )}
     </main>
