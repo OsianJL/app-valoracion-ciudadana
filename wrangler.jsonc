@@ -4,6 +4,9 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-08-31",
   "workers_dev": false,
+  "triggers": {
+    "crons": ["0 2 * * *"]
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

@@ -4,7 +4,7 @@ const labels = ["Muy mala", "Mala", "Aceptable", "Buena", "Excelente"];
 
 export default function App() {
   const officeToken = new URLSearchParams(window.location.search).get("o") ?? "";
-  const [officeState, setOfficeState] = useState<"loading" | "valid" | "invalid">(officeToken ? "loading" : "invalid");
+  const [officeState, setOfficeState] = useState<"loading" | "valid" | "invalid" | "closed">(officeToken ? "loading" : "invalid");
   const [rating, setRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [comment, setComment] = useState("");
@@ -19,7 +19,11 @@ export default function App() {
     if (!officeToken) return;
     const controller = new AbortController();
     fetch(`/api/office?o=${encodeURIComponent(officeToken)}`, { signal: controller.signal })
-      .then((response) => setOfficeState(response.ok ? "valid" : "invalid"))
+      .then(async (response) => {
+        if (!response.ok) return setOfficeState("invalid");
+        const data = await response.json() as { closed?: boolean };
+        setOfficeState(data.closed ? "closed" : "valid");
+      })
       .catch((reason: unknown) => {
         if (!(reason instanceof DOMException && reason.name === "AbortError")) setOfficeState("invalid");
       });
@@ -54,6 +58,12 @@ export default function App() {
       setError("Ya se ha registrado una valoración desde esta conexión.");
       return;
     }
+    if (response.status === 410) {
+      setStatus("idle");
+      setError("");
+      setOfficeState("closed");
+      return;
+    }
     if (!response.ok) {
       setStatus("idle");
       setError("No hemos podido enviar tu valoración. Inténtalo de nuevo.");
@@ -68,9 +78,11 @@ export default function App() {
 
   return (
     <main className="card">
-      <header><span className="eyebrow">SERVICIOS PÚBLICOS</span><h1>Tu opinión nos ayuda a mejorar</h1><p>La encuesta es anónima y solo te llevará unos segundos.</p></header>
+      <header><span className="eyebrow">SERVICIOS PÚBLICOS</span><h1>Tu opinión nos ayuda a mejorar</h1><p>Responder solo te llevará unos segundos.</p></header>
       {officeState === "loading" ? (
         <div className="notice" role="status">Validando enlace…</div>
+      ) : officeState === "closed" ? (
+        <div className="notice" role="status"><strong>El periodo de valoración ha finalizado</strong></div>
       ) : officeState === "invalid" ? (
         <div className="notice error" role="alert"><strong>Enlace de valoración no válido.</strong><br />Accede mediante el código QR correspondiente a tu oficina.</div>
       ) : (
@@ -134,7 +146,7 @@ export default function App() {
           <label className="comment">Comentario <span>(opcional)</span><textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} rows={4} placeholder="Cuéntanos qué podemos mejorar" /><small>{comment.length}/500</small></label>
           {error && <div className="notice error" role="alert">{error}</div>}
           <button type="submit" disabled={rating === null || digitalAgentsFixed === null || otherOfficesFixed === null || status === "sending"}>{status === "sending" ? "Enviando…" : "Enviar valoración"}</button>
-          <p className="privacy">No solicitamos datos personales. La dirección IP se transforma en un código irreversible.</p>
+          <p className="privacy">No solicitamos tu nombre ni datos de contacto. Para impedir valoraciones repetidas, la dirección IP se transforma mediante HMAC-SHA-256 en un código seudonimizado. No almacenamos la dirección IP original. Este código se conservará hasta el 31 de marzo de 2027 y después será eliminado.</p>
         </form>
       )}
     </main>
