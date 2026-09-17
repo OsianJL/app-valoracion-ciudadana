@@ -3,7 +3,7 @@ import { readFileSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
-import { CLAIM_IP_HASH_SQL, INSERT_RATING_SQL } from "../worker/index.ts";
+import { CLAIM_IP_HASH_SQL, INSERT_RATING_SQL } from "../worker/ratingQueries.ts";
 
 function bind(sql, values) {
   let index = 0;

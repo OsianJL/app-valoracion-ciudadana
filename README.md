@@ -11,7 +11,7 @@ Aplicación React creada con Vite. Vite genera `dist`; un único Cloudflare Work
 
 El Worker obtiene la cabecera `CF-Connecting-IP` únicamente durante el envío y calcula un código mediante **HMAC-SHA-256** con el secreto `IP_HASH_SECRET`. La dirección IP original no se escribe en D1 ni se incluye en respuestas, paneles o exportaciones. Es importante conservar el mismo secreto durante todo el programa: cambiarlo permitiría que una dirección ya utilizada volviera a participar.
 
-Los códigos se guardan, con una restricción única, en `rating_ip_hashes`, que no contiene fecha, ID de valoración ni otros campos. Las respuestas se guardan por separado en `ratings`, que no contiene el código ni una referencia a él. La unicidad se comprueba globalmente: una dirección solo puede responder una vez en total, aunque use el enlace de otra oficina.
+Los códigos se guardan, con una restricción única, en `rating_ip_hashes`, que no contiene fecha, ID de valoración, `rowid` implícito ni otros campos. Las respuestas se guardan por separado en `ratings`, que no contiene el código ni una referencia a él. La unicidad se comprueba globalmente: una dirección solo puede responder una vez en total, aunque use el enlace de otra oficina.
 
 El programa termina en el instante documentado en el Worker: **`2027-04-01T00:00:00+01:00`** (fin del 31 de marzo en la zona indicada). Desde ese momento la API rechaza nuevos envíos y elimina todos los registros de `rating_ip_hashes`, sin borrar ninguna fila de `ratings`. Su plazo de conservación se decidirá por separado.
 

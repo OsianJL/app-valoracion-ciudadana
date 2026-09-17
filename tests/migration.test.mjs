@@ -17,6 +17,11 @@ test("migration separates hashes without losing or changing ratings", () => {
     const check = execute("SELECT group_concat(name || ':' || type || ':' || \"notnull\" || ':' || pk, '|') FROM pragma_table_info('rating_ip_hashes'); SELECT group_concat(ip_hash, '|') FROM (SELECT ip_hash FROM rating_ip_hashes ORDER BY ip_hash); SELECT group_concat(id || ':' || created_at || ':' || office_id || ':' || satisfaction_level || ':' || digital_agents_fixed || ':' || other_public_offices_fixed || ':' || comment, '|') FROM (SELECT * FROM ratings ORDER BY id); SELECT group_concat(name, '|') FROM pragma_table_info('ratings'); SELECT COUNT(*) FROM pragma_index_list('ratings') WHERE name='ratings_office_created_idx';");
     assert.equal(check.status, 0, check.stderr);
     assert.equal(check.stdout.trim(), "ip_hash:TEXT:1:1\nhash-a|hash-b\n7:2026-01-01T00:00:00.000Z:office-a:4:1:0:first|12:2026-02-01T00:00:00.000Z:office-b:5:0:1:second\nid|created_at|office_id|satisfaction_level|digital_agents_fixed|other_public_offices_fixed|comment\n1");
+    for (const alias of ["rowid", "_rowid_", "oid"]) {
+      const hiddenIdentifier = execute(`SELECT ${alias} FROM rating_ip_hashes LIMIT 1;`);
+      assert.notEqual(hiddenIdentifier.status, 0, `${alias} unexpectedly exists`);
+      assert.match(hiddenIdentifier.stderr, /no such column/);
+    }
   } finally {
     rmSync(database, { force: true });
   }

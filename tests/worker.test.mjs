@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker, { handleRequest, PROGRAM_ENDS_AT } from "../worker/index.ts";
+import worker from "../worker/index.ts";
+import { handleRequest } from "../worker/handler.ts";
+import { PROGRAM_ENDS_AT } from "../worker/program.ts";
 
 const TOKEN_A = "locpSxskBzbYEU47-Vq_UQ";
 const TOKEN_B = "ANM4DORobuODx-mS-9u3eg";
 const BEFORE_END = Date.parse(PROGRAM_ENDS_AT) - 1;
+
+test("Worker entry point exposes only the Cloudflare-compatible default export", async () => {
+  const entryPoint = await import("../worker/index.ts");
+  assert.deepEqual(Object.keys(entryPoint), ["default"]);
+});
 
 class MemoryDb {
   hashes = new Set();

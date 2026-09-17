@@ -2,7 +2,7 @@
 -- it to an individual survey response.
 CREATE TABLE rating_ip_hashes (
   ip_hash TEXT NOT NULL PRIMARY KEY
-);
+) WITHOUT ROWID;
 
 INSERT INTO rating_ip_hashes (ip_hash)
 SELECT ip_hash
