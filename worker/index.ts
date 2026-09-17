@@ -15,6 +15,8 @@ const PROGRAM_ENDED_ERROR = "El plazo para enviar valoraciones ha finalizado.";
 export const PROGRAM_ENDS_AT = "2027-04-01T00:00:00+01:00";
 const PROGRAM_ENDS_AT_MS = Date.parse(PROGRAM_ENDS_AT);
 const RESULT_COLUMNS = "id, created_at, office_id, satisfaction_level, digital_agents_fixed, other_public_offices_fixed, comment";
+export const CLAIM_IP_HASH_SQL = "INSERT INTO rating_ip_hashes (ip_hash) VALUES (?) ON CONFLICT (ip_hash) DO NOTHING";
+export const INSERT_RATING_SQL = "INSERT INTO ratings (office_id, satisfaction_level, comment, digital_agents_fixed, other_public_offices_fixed) SELECT ?, ?, ?, ?, ? WHERE changes() = 1";
 
 interface RatingResult {
   id: number;
@@ -70,8 +72,8 @@ async function createRating(request: Request, env: Env, now: number): Promise<Re
   // D1 batches are transactional. changes() makes the response insert conditional on
   // this batch having claimed the globally unique hash, including under concurrency.
   const [, ratingResult] = await env.DB.batch([
-    env.DB.prepare("INSERT INTO rating_ip_hashes (ip_hash) VALUES (?) ON CONFLICT (ip_hash) DO NOTHING").bind(ipHash),
-    env.DB.prepare("INSERT INTO ratings (office_id, satisfaction_level, comment, digital_agents_fixed, other_public_offices_fixed) SELECT ?, ?, ?, ?, ? WHERE changes() = 1")
+    env.DB.prepare(CLAIM_IP_HASH_SQL).bind(ipHash),
+    env.DB.prepare(INSERT_RATING_SQL)
       .bind(officeId, satisfaction_level, comment.trim() || null, digital_agents_fixed ? 1 : 0, other_public_offices_fixed ? 1 : 0),
   ]);
   if (ratingResult.meta.changes === 0) return json({ error: DUPLICATE_RATING_ERROR }, 409);
@@ -130,7 +132,7 @@ export async function handleRequest(request: Request, env: Env, now = Date.now()
   if (url.pathname.startsWith("/api/")) {
     if (url.pathname === "/api/office" && request.method === "GET") {
       const officeId = officeIdForToken(url.searchParams.get("o"));
-      return officeId ? json({ valid: true }, 200) : json({ error: "Oficina no válida." }, 404);
+      return officeId ? json({ valid: true, closed: now >= PROGRAM_ENDS_AT_MS }, 200) : json({ error: "Oficina no válida." }, 404);
     }
     if ((url.pathname === "/api/results" || url.pathname === "/api/results.csv") && request.method === "GET") {
       try { return await getResults(request, env, url.pathname.endsWith(".csv")); }

@@ -99,3 +99,11 @@ test("rejects new responses and removes hashes at and after program end", async 
   assert.equal(environment.DB.hashes.size, 0);
   assert.equal(environment.DB.ratings.length, 1);
 });
+
+test("office validation reports closure before the form is completed", async () => {
+  const environment = env();
+  const open = await handleRequest(new Request(`https://example.test/api/office?o=${TOKEN_A}`), environment, BEFORE_END);
+  const closed = await handleRequest(new Request(`https://example.test/api/office?o=${TOKEN_A}`), environment, Date.parse(PROGRAM_ENDS_AT));
+  assert.deepEqual(await open.json(), { valid: true, closed: false });
+  assert.deepEqual(await closed.json(), { valid: true, closed: true });
+});

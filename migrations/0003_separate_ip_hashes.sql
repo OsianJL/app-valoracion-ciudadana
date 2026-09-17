@@ -1,13 +1,11 @@
--- Keep the duplicate-control identifier apart from survey responses. The
--- earliest associated response date is the best available creation timestamp
--- for hashes collected before this migration.
+-- Keep only the duplicate-control identifier, with no field that can correlate
+-- it to an individual survey response.
 CREATE TABLE rating_ip_hashes (
-  ip_hash TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  ip_hash TEXT NOT NULL PRIMARY KEY
 );
 
-INSERT INTO rating_ip_hashes (ip_hash, created_at)
-SELECT ip_hash, MIN(created_at)
+INSERT INTO rating_ip_hashes (ip_hash)
+SELECT ip_hash
 FROM ratings
 GROUP BY ip_hash;
 
